@@ -26,10 +26,11 @@ GitHub Pages off `main`, or just open the file in a browser.
 
 | Control | Range | What it does |
 |---|---|---|
-| Road | loop / open | Closed 500 m loop, or an open road with an on-ramp at 150 m |
+| Road | loop / open | Closed 500 m loop, or an open road with an on-ramp at 90 m |
 | Cars on the loop | 10–150 | Loop only. On a fixed 500 m loop this *is* density (veh/km/lane) |
 | Mainline demand | 500–6500 veh/h | Open only. Traffic wanting to join at the start, all three lanes |
-| Ramp demand | 0–1800 veh/h | Open only. Traffic joining from the slip road at 65 km/h |
+| Ramp demand | 0–1800 veh/h | Open only. Traffic joining from the slip road at 75 km/h |
+| Toll plaza | 0–10 s | Barrier across all lanes at 420 m; average dwell per vehicle, 0 = off |
 | Average desired speed | 40–130 km/h | Speed each driver holds on an empty road |
 | Spread of desired speeds | 0–26 km/h | Standard deviation across drivers |
 | Share of HGVs | 0–40% | Limited to 90 km/h, 16.5 m long, sluggish, barred from lane 3 |
@@ -74,14 +75,23 @@ cannot find room waits in an entry queue rather than vanishing, so demand above
 capacity shows up as a growing queue instead of being silently discarded. Vehicles
 are removed at the far end.
 
-The on-ramp is a fourth lane that exists only between 150 m and 285 m. Ramp
-vehicles arrive at 65 km/h and must merge into lane 1 before the acceleration lane
-runs out, using the same forced-merge machinery as the lane closure — take the
-first safe gap, with the acceptable braking imposed on the new follower rising as
-the road runs out. The end of the acceleration lane is a hard barrier.
+The on-ramp is a fourth lane that exists only between 90 m and 310 m — 220 m of
+acceleration lane. Ramp vehicles arrive at 75 km/h and must merge into lane 1
+before it runs out, using the same forced-merge machinery as the lane closure:
+take the first safe gap, with the acceptable braking imposed on the new follower
+rising as the road runs out. The end of the acceleration lane is a hard barrier.
 
-The fundamental diagram switches to a fixed 100 m detector section between 40 m and
-140 m, upstream of the merge, because on an open road density varies along the
+Approaching the slip road, mainline drivers in lane 1 get an incentive to move out
+and those in lane 2 are discouraged from moving in, which is what drivers actually
+do and which turns out to matter more than the length of the slip road.
+
+The toll plaza puts a barrier across all three running lanes at 420 m, one booth
+per lane. A vehicle must come to a genuine stop within a car's length of the line,
+dwell for an exponentially distributed service time, and only then is the barrier
+lifted for it. Lorries take 1.6× as long. On a loop, vehicles pay again each lap.
+
+The fundamental diagram switches to a fixed 60 m detector section between 20 m and
+80 m, upstream of the merge, because on an open road density varies along the
 carriageway and a whole-road average would be meaningless.
 
 Integration is ballistic at a fixed 50 ms step, computed synchronously — every
@@ -121,37 +131,61 @@ Density sweep, no HGVs: free flow up to about 25 veh/km/lane, capacity around
 
 ### Open road, and what the on-ramp costs
 
-Throughput measured at the exit over five minutes, after a three-minute warm-up,
-no HGVs.
+Throughput measured at the exit over four minutes, after a three-minute warm-up,
+no HGVs, no toll.
 
 | Mainline | Ramp | Total demand | Throughput | Mean speed | Entry queue |
 |---|---|---|---|---|---|
-| 6500 | 0 | 6500 | 6372 veh/h (2124/lane) | 75 km/h | none |
-| 4500 | 0 | 4500 | 4452 veh/h | 92 km/h | none |
-| 4500 | 700 | 5200 | 4080 veh/h | 21 km/h | growing |
-| 4500 | 900 | 5400 | 4248 veh/h | 23 km/h | growing |
-| 4500 | 1800 | 6300 | 4152 veh/h | 19 km/h | growing fast |
+| 6500 | 0 | 6500 | 6285 veh/h (2095/lane) | 77 km/h | negligible |
+| 4500 | 0 | 4500 | 4215 veh/h | 96 km/h | none |
+| 4500 | 700 | 5200 | 4665 veh/h | 30 km/h | growing |
+| 4500 | 900 | 5400 | 5025 veh/h | 80 km/h | none |
+| 4500 | 1800 | 6300 | 4275 veh/h | 18 km/h | growing |
 
-Without the ramp the road carries over 2100 veh/h/lane. Open the ramp and total
-throughput caps out around 4200–4400 veh/h however much demand is thrown at it —
-the merge, not the road, becomes the constraint, and *more ramp demand does not
-produce more throughput*.
+Note rows three and four: *less* ramp demand broke down while *more* did not. That
+is not noise in the measurement, it is the metastability. Near capacity whether the
+merge collapses depends on whether a large enough disturbance happens to arrive, so
+two runs at the same demand can end up in different states and stay there. Once
+collapsed it stays collapsed, which is the capacity drop — recovering free flow
+needs demand to fall well below the level that broke it.
 
-The breakdown is metastable, which is the interesting part. At the default 4500 +
-700 the road runs freely for roughly 140 seconds and then collapses, and once
-collapsed it stays collapsed. That is the capacity drop: recovering free flow needs
-demand to fall well below the level that broke it.
+With 220 m of acceleration lane and mainline drivers who vacate lane 1, the merge
+costs very little until demand approaches capacity. An earlier version used a 135 m
+slip road, a 65 km/h entry speed and no courtesy behaviour, and capped throughput at
+around 4250 veh/h no matter what — a 32% capacity loss that was an artefact of an
+unrealistically harsh merge rather than a property of merging.
+
+### What a toll plaza costs
+
+Demand 6000 veh/h, no ramp, one booth per running lane.
+
+| Dwell at the booth | Per lane | Cycle per vehicle | Overhead beyond the dwell |
+|---|---|---|---|
+| 0.5 s | 465 veh/h | 7.7 s | 7.2 s |
+| 2 s | 380 veh/h | 9.5 s | 7.5 s |
+| 5 s | 270 veh/h | 13.3 s | 8.3 s |
+| 9 s | 205 veh/h | 17.6 s | 8.6 s |
+
+The transaction is not the expensive part. Braking to a halt, pulling away again and
+letting the next vehicle roll forward and stop costs a roughly constant 7–9 seconds
+per vehicle whatever the dwell, so even an instantaneous transaction leaves a lane
+carrying about 465 vehicles an hour against more than 2,000 flowing freely. That
+constant is the entire argument for free-flow tolling.
+
+For reference, real cash toll lanes handle roughly 250–400 vehicles per hour, which
+is where the 5 s dwell lands.
 
 ## Known limits
 
+- The toll plaza has one booth per running lane. Real plazas fan out to far more
+  booths than the road has lanes, which is precisely because a booth-per-lane
+  barrier collapses a motorway; the numbers above are correct for what is modelled
+  but should not be read as the capacity of a real toll plaza.
 - With the lane closure on at high density in loop mode, the queue eventually wraps
   the whole ring and everything gridlocks. That is honest ring-road behaviour, not
   a bug — use open-road mode for anything involving a queue that needs somewhere to
   go.
-- The on-ramp is deliberately a harsh one: 135 m of acceleration lane and a 65 km/h
-  entry speed. A longer slip road would cost far less capacity, and the ~30% drop
-  measured here should not be read as typical of motorway merges in general.
-- The open road is only 500 m long, so the upstream queue has about 300 m before it
+- The open road is only 500 m long, so the upstream queue has about 90 m before it
   reaches the entry and starts backing up into the queue counter rather than being
   visible on the map.
 - Headways are heterogeneous only through a small multiplier on a single slider.

@@ -11,6 +11,7 @@
   --sign:#17357A; --sign-soft:rgba(23,53,122,.10);
   --matrix:#A4620B; --matrix-soft:rgba(164,98,11,.12);
   --asphalt:#33383F; --asphalt-2:#3C424A; --paint:#EFEFE9; --cone:#E0761A;
+  --verge:#B7BBA8; --booth:#6C727E; --barrier:#C0443B;
   --v-free:#1E9B57; --v-slow:#DFA11B; --v-stop:#CE4739;
   --shadow:0 1px 2px rgba(20,24,31,.06), 0 8px 24px -12px rgba(20,24,31,.22);
 }
@@ -22,6 +23,7 @@
     --sign:#83A9FF; --sign-soft:rgba(131,169,255,.12);
     --matrix:#FFB222; --matrix-soft:rgba(255,178,34,.14);
     --asphalt:#22262C; --asphalt-2:#292E35; --paint:#C6CAD1; --cone:#F08A2A;
+    --verge:#1F251E; --booth:#3F4751; --barrier:#CE554B;
     --v-free:#31C070; --v-slow:#EDB130; --v-stop:#E2594A;
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
   }
@@ -33,6 +35,7 @@
   --sign:#83A9FF; --sign-soft:rgba(131,169,255,.12);
   --matrix:#FFB222; --matrix-soft:rgba(255,178,34,.14);
   --asphalt:#22262C; --asphalt-2:#292E35; --paint:#C6CAD1; --cone:#F08A2A;
+  --verge:#1F251E; --booth:#3F4751; --barrier:#CE554B;
   --v-free:#31C070; --v-slow:#EDB130; --v-stop:#E2594A;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
 }
@@ -193,7 +196,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="ctl">
       <div class="top"><label for="cMode">Road</label></div>
       <div class="toggle"><input type="checkbox" id="cMode"><label for="cMode">Open road with an on-ramp</label></div>
-      <p class="hint">Off, it is a closed 500&nbsp;m loop with a fixed number of cars. On, traffic arrives at one end, leaves at the other, and a slip road joins lane&nbsp;1 at 150&nbsp;m.</p>
+      <p class="hint">Off, it is a closed 500&nbsp;m loop with a fixed number of cars. On, traffic arrives at one end, leaves at the other, and a slip road joins lane&nbsp;1 at 90&nbsp;m.</p>
     </div>
     <div class="ctl loop-only">
       <div class="top"><label for="cCars">Cars on the loop</label><output id="oCars"></output></div>
@@ -208,7 +211,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="ctl open-only">
       <div class="top"><label for="cInRamp">Ramp demand</label><output id="oInRamp"></output></div>
       <input type="range" id="cInRamp" min="0" max="1800" step="50" value="700">
-      <p class="hint">Traffic joining from the slip road at 65&nbsp;km/h. It has 135&nbsp;m of acceleration lane to find a gap in lane&nbsp;1.</p>
+      <p class="hint">Traffic joining from the slip road at 75&nbsp;km/h, with 220&nbsp;m of acceleration lane to find a gap. Mainline drivers pull out of lane&nbsp;1 to make room, as they do in reality.</p>
     </div>
     <div class="ctl">
       <div class="top"><label for="cSpeed">Average desired speed</label><output id="oSpeed"></output></div>
@@ -249,6 +252,11 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
       <div class="top"><label for="cClose">Lane 3 closure</label></div>
       <div class="toggle"><input type="checkbox" id="cClose"><label for="cClose">Coned off from 300&nbsp;m to 360&nbsp;m</label></div>
       <p class="hint">Pins the jam to one place instead of letting it wander. Most real jams have a cause like this.</p>
+    </div>
+    <div class="ctl">
+      <div class="top"><label for="cToll">Toll plaza</label><output id="oToll"></output></div>
+      <input type="range" id="cToll" min="0" max="10" step="0.5" value="0">
+      <p class="hint">Barriers at 420&nbsp;m, one booth per lane. This is the average time to pay &mdash; a few drivers take far longer. Zero switches the plaza off.</p>
     </div>
     <div class="ctl">
       <div class="top"><label for="cRate">Simulation rate</label><output id="oRate"></output></div>
@@ -323,7 +331,12 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="factor">
       <span class="tag">In the sim</span>
       <h4>A bottleneck</h4>
-      <p>Most real jams are not phantoms. They are pinned to a lane closure, an on-ramp, a gradient or a bend. Turn the closure on and the jam stops wandering and parks itself upstream of the cones. The on-ramp is the more instructive one: the road runs freely for a couple of minutes and then breaks down, and once it has, throughput settles well below what it was carrying before. Getting it back means turning the demand down much further than the level that broke it.</p>
+      <p>Most real jams are not phantoms. They are pinned to a lane closure, an on-ramp, a gradient or a bend. Turn the closure on and the jam stops wandering and parks itself upstream of the cones. The merge is the subtler one: with a long enough slip road and drivers who move over, it costs almost nothing, but shorten it and the same traffic breaks down and stays broken.</p>
+    </div>
+    <div class="factor">
+      <span class="tag">In the sim</span>
+      <h4>Anything that makes you stop</h4>
+      <p>The toll plaza is the most brutal thing here, and not because paying takes long. A vehicle has to brake to a halt, transact, pull away, and let the next one roll forward and stop again &mdash; and that cycle costs about eight seconds per vehicle <em>before</em> any money changes hands. Set the dwell to half a second and a lane still manages only around 460 vehicles an hour, against more than 2,000 flowing. Stopping is the expensive part, which is the whole argument for free-flow tolling.</p>
     </div>
     <div class="factor">
       <span class="tag blue">Structural</span>
@@ -363,9 +376,13 @@ var CLOSE_A = 300, CLOSE_B = 360, CLOSE_LANE = 2;
 var MERGE_ZONE = 220;        // m of advance warning
 var MIN_SLOT = 2.6;          // m, smallest gap anyone will squeeze into
 var RAMP = 3;                // list index of the on-ramp acceleration lane
-var RAMP_A = 150, RAMP_B = 285;   // the acceleration lane runs between these
-var RAMP_V = 65/3.6;         // m/s, speed traffic arrives at the top of the ramp
-var SEC_A = 40, SEC_B = 140; // detector section, upstream of the merge
+var RAMP_A = 90, RAMP_B = 310;    // 220 m of acceleration lane, a realistic slip road
+var RAMP_TAPER = 40;         // m of tapering nose at the far end
+var RAMP_V = 75/3.6;         // m/s, speed traffic arrives at the top of the ramp
+var SEC_A = 20, SEC_B = 80;  // detector section, upstream of the merge
+var MERGE_COURTESY = 0.55;   // m/s^2, pull to vacate lane 1 at a slip road
+var TOLL_X = 420;            // m, the barrier line
+var TOLL_HGV = 1.6;          // lorries take longer to process
 
 var $ = function(id){ return document.getElementById(id); };
 var road = $("road"), rctx = road.getContext("2d");
@@ -374,12 +391,12 @@ var fd = $("fdCanvas"), fctx = fd.getContext("2d");
 
 var C = {
   cars:$("cCars"), speed:$("cSpeed"), sd:$("cSd"), T:$("cT"), hgv:$("cHgv"),
-  lag:$("cLag"), noise:$("cNoise"), pol:$("cPol"), close:$("cClose"), rate:$("cRate"),
+  lag:$("cLag"), noise:$("cNoise"), pol:$("cPol"), close:$("cClose"), rate:$("cRate"), toll:$("cToll"),
   mode:$("cMode"), inMain:$("cInMain"), inRamp:$("cInRamp")
 };
 var O = {
   cars:$("oCars"), speed:$("oSpeed"), sd:$("oSd"), T:$("oT"), hgv:$("oHgv"),
-  lag:$("oLag"), noise:$("oNoise"), pol:$("oPol"), rate:$("oRate"),
+  lag:$("oLag"), noise:$("oNoise"), pol:$("oPol"), rate:$("oRate"), toll:$("oToll"),
   inMain:$("oInMain"), inRamp:$("oInRamp")
 };
 
@@ -393,7 +410,7 @@ function hex(h){
 function readTokens(){
   var cs = getComputedStyle(document.documentElement);
   ["asphalt","asphalt-2","paint","surface","surface-2","sunk","line","ink-3",
-   "v-free","v-slow","v-stop","matrix","cone"].forEach(function(n){
+   "v-free","v-slow","v-stop","matrix","cone","verge","booth","barrier"].forEach(function(n){
     K[n] = cs.getPropertyValue("--"+n).trim();
   });
   K.rgbFree = hex(K["v-free"]); K.rgbSlow = hex(K["v-slow"]);
@@ -438,7 +455,7 @@ function makeCar(x, lane, hgv){
     v0Z:randn(), TZ:randn()*0.12, capZ:randn(),
     a:hgv ? HGV_A : A_MAX, b:hgv ? HGV_B : B_COMF,
     s0:hgv ? HGV_S0 : S0, len:hgv ? HGV_LEN : CAR_LEN,
-    lc:0, rt:Math.random()*0.7, aHold:0, nx:x, nv:0
+    lc:0, rt:Math.random()*0.7, aHold:0, nx:x, nv:0, paid:false, payUntil:0
   };
   setDesired(c);
   c.v = c.v0*0.9;
@@ -564,17 +581,47 @@ function forcedMerge(c){
   var d = isOpen() ? CLOSE_A - c.x : wrap(CLOSE_A - c.x);
   return (d >= 0 && d < MERGE_ZONE) ? d : Infinity;
 }
+/* distance to the toll barrier for a vehicle that still has to pay */
+function tollDist(c){
+  if(!tollOn() || c.paid || c.lane === RAMP) return Infinity;
+  var d = isOpen() ? TOLL_X - c.x : wrap(TOLL_X - c.x);
+  return (d >= 0 && d < MERGE_ZONE) ? d : Infinity;
+}
 function accelWith(c, lead, dLead){
   var s = lead ? dLead - lead.len : 1e5;
   var dv = lead ? c.v - lead.v : 0;
   var a = idm(c, s, dv);
   var d = forcedMerge(c);
   if(d > 0 && d < MERGE_ZONE) a = Math.min(a, idm(c, Math.max(0.2, d - 1.5), c.v));
+  var t = tollDist(c);
+  if(t < MERGE_ZONE) a = Math.min(a, idm(c, Math.max(0.15, t - 0.8), c.v));
   return a;
+}
+/* ---------------- toll plaza ---------------- */
+function tollOn(){ return +C.toll.value > 0; }
+function serviceTime(c){
+  var mean = +C.toll.value*(c.hgv ? TOLL_HGV : 1);
+  /* exponential dwell: most drivers are quick, a few fumble for change */
+  return Math.max(0.35*mean, -mean*Math.log(Math.max(1e-6, Math.random())));
+}
+function runToll(){
+  if(!tollOn()) return;
+  for(var i = 0; i < cars.length; i++){
+    var c = cars[i];
+    if(c.paid || c.lane === RAMP) continue;
+    /* a car halts a standstill gap short of the barrier, so "at the booth"
+       has to mean within a car's length of it, not touching it */
+    var d = isOpen() ? TOLL_X - c.x : wrap(TOLL_X - c.x);
+    if(d < 0 || d > 6.5) continue;
+    if(c.v > 0.6) continue;                      // must actually stop at the barrier
+    if(!c.payUntil) c.payUntil = simT + serviceTime(c);
+    else if(simT >= c.payUntil){ c.paid = true; c.payUntil = 0; }
+  }
 }
 
 /* ---------------- one physics step ---------------- */
 function step(){
+  runToll();
   var lists = [laneList(0), laneList(1), laneList(2), laneList(RAMP)];
   var pol = +C.pol.value, noise = +C.noise.value, i, c;
 
@@ -624,6 +671,12 @@ function step(){
           oAfter  = accelWith(here.foll, here.lead, dOL);
         }
         var bias = d*BIAS_LEFT*(c.hgv ? 4 : 1);            // lorries hold the left much harder
+        /* approaching a slip road, drivers pull out of lane 1 to let traffic
+           in and stay out of it until past the merge */
+        if(isOpen() && c.x > RAMP_A - 60 && c.x < RAMP_B + 20){
+          if(c.lane === 0 && tgt === 1) bias -= MERGE_COURTESY;
+          if(c.lane === 1 && tgt === 0) bias += MERGE_COURTESY;
+        }
         gain = (aNew - aOld) + pol*((fAfter - fBefore) + (oAfter - oBefore)) - bias;
       }
       if(gain > bestGain){ bestGain = gain; best = tgt; }
@@ -690,6 +743,9 @@ function step(){
     if(c.lane === RAMP && xNew >= RAMP_B){       // the acceleration lane runs out
       xNew = Math.min(xNew, RAMP_B - 0.5); vNew = 0;
     }
+    if(tollOn() && !c.paid && c.lane !== RAMP && c.x < TOLL_X && xNew >= TOLL_X){
+      xNew = Math.min(xNew, TOLL_X - 0.6); vNew = 0;     // the barrier is down
+    }
     c.nx = xNew; c.nv = vNew;
   }
 
@@ -704,6 +760,7 @@ function step(){
       c.x = c.nx;
       kept.push(c);
     } else {
+      if(c.nx >= L) c.paid = false;              // a fresh lap means paying again
       c.x = wrap(c.nx);
     }
     c.v = c.nv;
@@ -768,8 +825,10 @@ function arrivals(){
 }
 
 /* ---------------- road rendering ---------------- */
-var laneH = 34, shoulder = 12, roadW = 0;
-function roadH(){ return LANES*laneH + shoulder*2 + (isOpen() ? laneH : 0); }
+var laneH = 34, shoulder = 13, verge = 9, roadW = 0;
+function deckTop(){ return verge + shoulder; }
+function deckBot(){ return deckTop() + LANES*laneH; }
+function roadH(){ return deckBot() + shoulder + verge + (isOpen() ? laneH + 4 : 0); }
 function sizeRoad(){
   var w = road.clientWidth || 900;
   var dpr = window.devicePixelRatio || 1;
@@ -780,6 +839,7 @@ function sizeRoad(){
   return w;
 }
 function rrect(x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
   rctx.beginPath();
   rctx.moveTo(x+r, y); rctx.lineTo(x+w-r, y); rctx.quadraticCurveTo(x+w, y, x+w, y+r);
   rctx.lineTo(x+w, y+h-r); rctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
@@ -787,86 +847,175 @@ function rrect(x, y, w, h, r){
   rctx.lineTo(x, y+r); rctx.quadraticCurveTo(x, y, x+r, y);
   rctx.closePath(); rctx.fill();
 }
+/* diagonal hatching, the paint used to close off a piece of carriageway */
+function hatch(x0, x1, y0, y1, step){
+  if(x1 <= x0) return;
+  rctx.save();
+  rctx.beginPath(); rctx.rect(x0, y0, x1-x0, y1-y0); rctx.clip();
+  rctx.strokeStyle = K["paint"]; rctx.globalAlpha = .34; rctx.lineWidth = 1.4;
+  rctx.beginPath();
+  for(var x = x0 - (y1-y0); x < x1; x += step){
+    rctx.moveTo(x, y1); rctx.lineTo(x + (y1-y0), y0);
+  }
+  rctx.stroke(); rctx.restore();
+}
+function dashLine(x0, x1, y, on, off, alpha){
+  rctx.strokeStyle = K["paint"]; rctx.globalAlpha = alpha; rctx.lineWidth = 1.7;
+  rctx.setLineDash([on, off]); rctx.beginPath();
+  rctx.moveTo(x0, y + 0.5); rctx.lineTo(x1, y + 0.5); rctx.stroke();
+  rctx.setLineDash([]); rctx.globalAlpha = 1;
+}
+function solidLine(x0, x1, y, alpha, w){
+  rctx.strokeStyle = K["paint"]; rctx.globalAlpha = alpha; rctx.lineWidth = w || 2;
+  rctx.beginPath(); rctx.moveTo(x0, y + 0.5); rctx.lineTo(x1, y + 0.5); rctx.stroke();
+  rctx.globalAlpha = 1;
+}
+
 function drawRoad(){
   var open = isOpen();
   if(road.clientWidth !== roadW || road.style.height !== roadH() + "px") roadW = sizeRoad();
-  var W = road.clientWidth, H = roadH(), px = W/L, l;
+  var W = road.clientWidth, H = roadH(), px = W/L, l, i;
+  var top = deckTop(), bot = deckBot();
   rctx.clearRect(0, 0, W, H);
-  rctx.fillStyle = K["asphalt-2"]; rctx.fillRect(0, 0, W, H);
-  rctx.fillStyle = K["asphalt"];   rctx.fillRect(0, shoulder, W, LANES*laneH);
 
-  function laneY(li){ return shoulder + (LANES-1-li)*laneH; }   // lane 1 at the bottom
+  /* verge, hard shoulders, running lanes */
+  rctx.fillStyle = K["verge"];    rctx.fillRect(0, 0, W, H);
+  rctx.fillStyle = K["asphalt-2"]; rctx.fillRect(0, verge, W, shoulder + LANES*laneH + shoulder);
+  rctx.fillStyle = K["asphalt"];   rctx.fillRect(0, top, W, LANES*laneH);
 
-  /* the on-ramp: an acceleration lane alongside lane 1, tapering out at the end */
-  if(open){
-    var ry = shoulder + LANES*laneH;
-    rctx.fillStyle = K["asphalt"];
-    rctx.beginPath();
-    rctx.moveTo(RAMP_A*px, ry + laneH);
-    rctx.lineTo(RAMP_A*px, ry);
-    rctx.lineTo(RAMP_B*px, ry);
-    rctx.lineTo(RAMP_B*px, ry + laneH*0.35);
-    rctx.closePath(); rctx.fill();
-    rctx.strokeStyle = K["paint"]; rctx.globalAlpha = .5;
-    rctx.lineWidth = 1.6; rctx.setLineDash([13, 15]);
-    rctx.beginPath(); rctx.moveTo(RAMP_A*px, ry + 0.5); rctx.lineTo(RAMP_B*px, ry + 0.5); rctx.stroke();
-    rctx.setLineDash([]); rctx.globalAlpha = .85; rctx.lineWidth = 2;
-    rctx.beginPath();
-    rctx.moveTo(RAMP_A*px, ry + laneH); rctx.lineTo(RAMP_B*px, ry + laneH*0.35);
-    rctx.stroke(); rctx.globalAlpha = 1;
-  }
+  function laneY(li){ return li === RAMP ? bot + shoulder + 4 : top + (LANES-1-li)*laneH; }
 
-  rctx.strokeStyle = K["paint"];
-  rctx.globalAlpha = .85; rctx.lineWidth = 2;
-  rctx.beginPath();
-  var deck = shoulder + LANES*laneH;                     // bottom edge of the carriageway
-  rctx.moveTo(0, shoulder+0.5); rctx.lineTo(W, shoulder+0.5);
-  rctx.moveTo(0, deck-0.5); rctx.lineTo(W, deck-0.5);
-  rctx.stroke();
-  rctx.globalAlpha = .5; rctx.lineWidth = 1.6; rctx.setLineDash([13, 15]);
-  rctx.beginPath();
-  for(l = 1; l < LANES; l++){ var y = shoulder + l*laneH + 0.5; rctx.moveTo(0, y); rctx.lineTo(W, y); }
-  rctx.stroke(); rctx.setLineDash([]); rctx.globalAlpha = 1;
-
-  rctx.strokeStyle = K["matrix"]; rctx.globalAlpha = .45; rctx.lineWidth = 1;
-  rctx.beginPath(); rctx.moveTo(0.5, shoulder); rctx.lineTo(0.5, deck); rctx.stroke();
-  if(open){                                              /* detector section for the chart */
-    rctx.globalAlpha = .3;
-    rctx.beginPath();
-    rctx.moveTo(SEC_A*px + 0.5, shoulder); rctx.lineTo(SEC_A*px + 0.5, deck);
-    rctx.moveTo(SEC_B*px + 0.5, shoulder); rctx.lineTo(SEC_B*px + 0.5, deck);
-    rctx.stroke();
+  /* wheel-worn strips, two per lane */
+  rctx.fillStyle = K["asphalt-2"]; rctx.globalAlpha = .30;
+  for(l = 0; l < LANES; l++){
+    var ly = top + l*laneH;
+    rctx.fillRect(0, ly + laneH*0.30, W, 2.5);
+    rctx.fillRect(0, ly + laneH*0.66, W, 2.5);
   }
   rctx.globalAlpha = 1;
 
-  if(C.close.checked){
-    var y0 = laneY(CLOSE_LANE);
-    rctx.fillStyle = K["asphalt-2"];
-    rctx.fillRect(CLOSE_A*px, y0, (CLOSE_B-CLOSE_A)*px, laneH);
-    rctx.fillStyle = K["cone"];
-    for(var cx = CLOSE_A; cx <= CLOSE_B; cx += 5) rctx.fillRect(cx*px - 1.2, y0 + laneH/2 - 4, 2.4, 8);
-    rctx.globalAlpha = .3;
-    for(var tx = CLOSE_A - MERGE_ZONE; tx < CLOSE_A; tx += 26) rctx.fillRect(wrap(tx)*px, y0 + laneH - 3, 9, 2);
+  /* the slip road: a lane peeling in from the verge, tapering to a nose */
+  var ry = laneY(RAMP);
+  if(open){
+    var xa = RAMP_A*px, xb = RAMP_B*px, xt = (RAMP_B - RAMP_TAPER)*px;
+    rctx.fillStyle = K["asphalt"];
+    rctx.beginPath();
+    rctx.moveTo(xa - 34, ry + laneH + 10);
+    rctx.quadraticCurveTo(xa - 6, ry + laneH + 6, xa + 10, ry);
+    rctx.lineTo(xt, ry);
+    rctx.lineTo(xb, ry + laneH);                 // the nose closes onto lane 1
+    rctx.lineTo(xt, ry + laneH);
+    rctx.quadraticCurveTo(xa + 4, ry + laneH, xa - 30, ry + laneH + 14);
+    rctx.closePath(); rctx.fill();
+
+    hatch(xt, xb, ry, ry + laneH, 9);            // chevrons in the closing wedge
+    solidLine(xa + 10, xa + (xt-xa)*0.22, ry, .9, 2.4);
+    dashLine(xa + (xt-xa)*0.22, xt, ry, 15, 13, .55);
+    rctx.strokeStyle = K["paint"]; rctx.globalAlpha = .9; rctx.lineWidth = 2.2;
+    rctx.beginPath();
+    rctx.moveTo(xa - 30, ry + laneH + 13); rctx.quadraticCurveTo(xa + 4, ry + laneH, xt, ry + laneH);
+    rctx.lineTo(xb, ry + laneH);
+    rctx.stroke();
+    rctx.beginPath(); rctx.moveTo(xt, ry); rctx.lineTo(xb, ry + laneH); rctx.stroke();
     rctx.globalAlpha = 1;
   }
 
-  var ref = meanV0();
-  for(var i = 0; i < cars.length; i++){
-    var c = cars[i];
-    var cw = Math.max(4.5, c.len*px), ch = c.hgv ? 16 : 13;
-    var y = shoulder + (LANES-1-c.laneF)*laneH + (laneH-ch)/2;
-    var x = c.x*px - cw;
-    var ghost = !open && x < 0;                   // only a loop shows the same car twice
-    rctx.fillStyle = rgbStr(ramp(c.v/ref));
-    rrect(x, y, cw, ch, 1.8);
-    if(ghost) rrect(x + W, y, cw, ch, 1.8);
-    if(c.hgv){                                    // split the cab off the trailer
-      rctx.fillStyle = K["asphalt"]; rctx.globalAlpha = .55;
-      rctx.fillRect(x + cw - 0.28*cw, y + 1, 1.4, ch - 2);
-      if(ghost) rctx.fillRect(x + W + cw - 0.28*cw, y + 1, 1.4, ch - 2);
+  /* carriageway edge lines and lane dividers */
+  solidLine(0, W, top, .9, 2.4);
+  solidLine(0, W, bot, .9, 2.4);
+  for(l = 1; l < LANES; l++) dashLine(0, W, top + l*laneH, 16, 14, .5);
+
+  /* the start and end of an open road */
+  if(open){
+    rctx.fillStyle = K["matrix"]; rctx.globalAlpha = .5;
+    for(i = 0; i < 3; i++){
+      rctx.fillRect(2 + i*7, top + 6, 4, bot - top - 12);
+    }
+    rctx.globalAlpha = .22;
+    rctx.fillRect(SEC_A*px, top, (SEC_B-SEC_A)*px, 3);
+    rctx.globalAlpha = 1;
+  } else {
+    rctx.strokeStyle = K["matrix"]; rctx.globalAlpha = .45; rctx.lineWidth = 1;
+    rctx.beginPath(); rctx.moveTo(0.5, top); rctx.lineTo(0.5, bot); rctx.stroke();
+    rctx.globalAlpha = 1;
+  }
+
+  /* lane closure: taper, then cones */
+  if(C.close.checked){
+    var y0 = laneY(CLOSE_LANE);
+    rctx.fillStyle = K["asphalt-2"]; rctx.globalAlpha = .55;
+    rctx.fillRect(CLOSE_A*px, y0, (CLOSE_B-CLOSE_A)*px, laneH);
+    rctx.globalAlpha = 1;
+    hatch(CLOSE_A*px, CLOSE_B*px, y0 + 2, y0 + laneH - 2, 10);
+    for(var cx = CLOSE_A; cx <= CLOSE_B; cx += 6){
+      var px0 = cx*px, cy = y0 + laneH/2;
+      rctx.fillStyle = K["cone"];
+      rctx.beginPath();
+      rctx.moveTo(px0, cy - 5); rctx.lineTo(px0 + 2.6, cy + 5); rctx.lineTo(px0 - 2.6, cy + 5);
+      rctx.closePath(); rctx.fill();
+      rctx.fillStyle = K["paint"]; rctx.globalAlpha = .75;
+      rctx.fillRect(px0 - 1.6, cy - 0.5, 3.2, 1.6);
       rctx.globalAlpha = 1;
     }
   }
+
+  /* toll plaza: canopy, booths between the lanes, one barrier arm per lane */
+  if(tollOn()){
+    var tx = TOLL_X*px;
+    rctx.fillStyle = K["booth"];
+    rctx.fillRect(tx - 15, verge - 3, 30, bot - verge + shoulder + 3);
+    rctx.fillStyle = K["asphalt"]; rctx.globalAlpha = .30;
+    rctx.fillRect(tx - 15, verge - 3, 30, bot - verge + shoulder + 3);
+    rctx.globalAlpha = 1;
+    for(l = 0; l <= LANES; l++){                 // booth kiosks straddle the lane lines
+      var by = top + l*laneH;
+      rctx.fillStyle = K["booth"];
+      rrect(tx - 13, by - 4, 26, 8, 2);
+      rctx.fillStyle = K["matrix"]; rctx.globalAlpha = .8;
+      rctx.fillRect(tx - 9, by - 1.6, 4, 3.2);
+      rctx.globalAlpha = 1;
+    }
+    for(l = 0; l < LANES; l++){                  // barrier arms
+      var ay = top + l*laneH + laneH/2;
+      rctx.fillStyle = K["barrier"];
+      rctx.fillRect(tx - 1.5, ay - laneH*0.34, 3, laneH*0.68);
+      rctx.fillStyle = K["paint"]; rctx.globalAlpha = .8;
+      rctx.fillRect(tx - 1.5, ay - laneH*0.10, 3, laneH*0.20);
+      rctx.globalAlpha = 1;
+    }
+  }
+
+  /* vehicles */
+  var ref = meanV0();
+  for(i = 0; i < cars.length; i++){
+    var c = cars[i];
+    var cw = Math.max(5, c.len*px), ch = c.hgv ? 17 : 13;
+    var y = laneY(0) - (c.laneF)*laneH + (laneH-ch)/2;
+    var x = c.x*px - cw;
+    var ghost = !open && x < 0;
+    drawVehicle(c, x, y, cw, ch, ref);
+    if(ghost) drawVehicle(c, x + W, y, cw, ch, ref);
+  }
+}
+
+function drawVehicle(c, x, y, cw, ch, ref){
+  var body = ramp(c.v/ref);
+  rctx.fillStyle = "rgba(0,0,0,.22)";            // a little ground shadow
+  rrect(x + 1, y + ch - 2.5, cw, 3.5, 1.6);
+  rctx.fillStyle = rgbStr(body);
+  rrect(x, y, cw, ch, c.hgv ? 1.6 : 2.6);
+  rctx.fillStyle = K["asphalt"];
+  if(c.hgv){
+    rctx.globalAlpha = .55;                      // the gap between cab and trailer
+    rctx.fillRect(x + cw*0.72, y + 1, 1.6, ch - 2);
+    rctx.globalAlpha = .30;                      // trailer ribs
+    for(var r = 0.10; r < 0.66; r += 0.14) rctx.fillRect(x + cw*r, y + 2, 1, ch - 4);
+  } else {
+    rctx.globalAlpha = .38;                      // windscreen and rear window
+    rctx.fillRect(x + cw*0.62, y + 2.2, Math.max(1.4, cw*0.16), ch - 4.4);
+    rctx.fillRect(x + cw*0.20, y + 2.2, Math.max(1.2, cw*0.12), ch - 4.4);
+  }
+  rctx.globalAlpha = 1;
 }
 
 /* ---------------- time-space diagram ---------------- */
@@ -983,6 +1132,7 @@ function labels(){
   O.sd.textContent    = "σ " + C.sd.value + " km/h";
   O.T.textContent     = (+C.T.value).toFixed(2) + " s";
   O.hgv.textContent   = C.hgv.value + "%";
+  O.toll.textContent  = (+C.toll.value ? (+C.toll.value).toFixed(1) + " s" : "off");
   O.inMain.textContent = C.inMain.value + " veh/h";
   O.inRamp.textContent = C.inRamp.value + " veh/h";
   O.lag.textContent   = (+C.lag.value).toFixed(2) + " s";
@@ -994,7 +1144,7 @@ C.cars.addEventListener("input", function(){ labels(); reflow(); });
 [C.speed, C.sd, C.T].forEach(function(el){
   el.addEventListener("input", function(){ labels(); refreshDesired(); });
 });
-[C.lag, C.noise, C.pol, C.rate, C.hgv, C.inMain, C.inRamp].forEach(function(el){ el.addEventListener("input", labels); });
+[C.lag, C.noise, C.pol, C.rate, C.hgv, C.inMain, C.inRamp, C.toll].forEach(function(el){ el.addEventListener("input", labels); });
 C.mode.addEventListener("change", function(){
   document.body.classList.toggle("open", isOpen());
   roadW = 0;                                   // the canvas gains or loses the ramp lane
