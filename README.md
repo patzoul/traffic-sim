@@ -1,12 +1,14 @@
 # Phantom Jam Lab
 
+**▶ Run it: https://patzoul.github.io/traffic-sim/**
+
 An interactive simulation of how motorway traffic jams form. Three lanes, a 500 m
 closed loop, and cars that follow the Intelligent Driver Model with MOBIL-style
 lane changing. Past a certain density the flow breaks down into stop-and-go waves
 on its own, with no accident, no bottleneck and nobody braking without reason.
 
-Single self-contained `index.html` — no build step, no dependencies. Open it in a
-browser.
+Single self-contained `index.html` — no build step, no dependencies. Served from
+GitHub Pages off `main`, or just open the file in a browser.
 
 ## What it shows
 
