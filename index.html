@@ -128,6 +128,8 @@ input[type=checkbox]{width:16px; height:16px; accent-color:var(--matrix); cursor
   padding:2px 6px; border-radius:2px; background:var(--matrix-soft); color:var(--matrix);
 }
 .tag.blue{background:var(--sign-soft); color:var(--sign)}
+body:not(.open) .open-only{display:none}
+body.open .loop-only{display:none}
 
 /* ---------- charts ---------- */
 .charts{display:grid; grid-template-columns:1.3fr 1fr; gap:20px}
@@ -157,14 +159,15 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
 <div class="wrap">
 
 <header>
-  <div class="eyebrow">Three lanes &middot; 500 m loop &middot; intelligent driver model</div>
+  <div class="eyebrow">Three lanes &middot; 500 m &middot; loop or open road &middot; intelligent driver model</div>
   <h1>Phantom Jam Lab</h1>
   <p class="standfirst">Nobody crashes, nobody brakes for no reason, no lane is closed &mdash; and yet past a certain density the motorway starts to seize up on its own. Set the traffic below and watch where the jams come from.</p>
 </header>
 
 <section class="stage">
   <div class="stage-head">
-    <div class="stage-title">Live carriageway &mdash; wraps around at the right edge</div>
+    <div class="stage-title loop-only">Live carriageway &mdash; wraps around at the right edge</div>
+    <div class="stage-title open-only">Live carriageway &mdash; traffic joins at the left and the slip road</div>
     <div class="ramp"><span>Stopped</span><span class="bar"></span><span>Free flow</span></div>
   </div>
   <div class="roadbox"><canvas id="road" height="150"></canvas></div>
@@ -173,6 +176,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="tile"><span class="k">Throughput</span><span class="v" id="mFlow">&mdash;</span></div>
     <div class="tile"><span class="k">Density</span><span class="v" id="mDens">&mdash;</span></div>
     <div class="tile"><span class="k">Crawling</span><span class="v" id="mJam">&mdash;</span></div>
+    <div class="tile open-only"><span class="k">Waiting to join</span><span class="v" id="mQueue">&mdash;</span></div>
     <div class="tile"><span class="k">Elapsed</span><span class="v" id="mClock">&mdash;</span></div>
   </div>
 </section>
@@ -187,9 +191,24 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
   </div>
   <div class="grid">
     <div class="ctl">
+      <div class="top"><label for="cMode">Road</label></div>
+      <div class="toggle"><input type="checkbox" id="cMode"><label for="cMode">Open road with an on-ramp</label></div>
+      <p class="hint">Off, it is a closed 500&nbsp;m loop with a fixed number of cars. On, traffic arrives at one end, leaves at the other, and a slip road joins lane&nbsp;1 at 150&nbsp;m.</p>
+    </div>
+    <div class="ctl loop-only">
       <div class="top"><label for="cCars">Cars on the loop</label><output id="oCars"></output></div>
       <input type="range" id="cCars" min="10" max="150" step="1" value="65">
       <p class="hint">On a fixed 500&nbsp;m loop this <em>is</em> density. Everything hinges on it.</p>
+    </div>
+    <div class="ctl open-only">
+      <div class="top"><label for="cInMain">Mainline demand</label><output id="oInMain"></output></div>
+      <input type="range" id="cInMain" min="500" max="6500" step="100" value="4500">
+      <p class="hint">Traffic wanting to join at the start, across all three lanes. Ask for more than the road can carry and the surplus queues at the entry.</p>
+    </div>
+    <div class="ctl open-only">
+      <div class="top"><label for="cInRamp">Ramp demand</label><output id="oInRamp"></output></div>
+      <input type="range" id="cInRamp" min="0" max="1800" step="50" value="700">
+      <p class="hint">Traffic joining from the slip road at 65&nbsp;km/h. It has 135&nbsp;m of acceleration lane to find a gap in lane&nbsp;1.</p>
     </div>
     <div class="ctl">
       <div class="top"><label for="cSpeed">Average desired speed</label><output id="oSpeed"></output></div>
@@ -253,7 +272,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
   <div class="panel">
     <div class="panel-head">
       <h3>Fundamental diagram</h3>
-      <p>Flow against density, one dot every two seconds. Move the car slider around and the dots trace the curve: flow rises with density, peaks, then collapses.</p>
+      <p>Flow against density, one dot every two seconds. Move the demand or car slider around and the dots trace the curve: flow rises with density, peaks, then collapses. On an open road the reading comes from a fixed 100&nbsp;m section upstream of the merge, the way a loop detector works.</p>
     </div>
     <div class="canvasbox">
       <canvas id="fdCanvas" width="440" height="240" style="height:260px"></canvas>
@@ -297,14 +316,14 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
       <p>A lorry is not a slow car. It is three and a half times longer, so it eats road space; it accelerates at a third of the rate, so it holds up everything behind it leaving a jam; and because every limiter is set to about the same 90&nbsp;km/h, lorries bunch into platoons and one overtaking another takes a mile. At the default density, putting 15% lorries on the road costs about twice as much throughput as winding the spread of car speeds from zero to its widest.</p>
     </div>
     <div class="factor">
-      <span class="tag blue">Structural</span>
+      <span class="tag">In the sim</span>
       <h4>Boundary conditions</h4>
-      <p>A closed loop keeps the car count fixed, which is what you want for isolating spontaneous jams. An open road with an arrival rate at one end is the alternative, and the one you need for on-ramps, merging, and queues that back up off the motorway entirely. They answer different questions.</p>
+      <p>A closed loop keeps the car count fixed, which is what you want for isolating spontaneous jams: nothing enters, nothing leaves, so anything that happens came from the traffic itself. An open road instead takes a demand in vehicles per hour and lets traffic leave at the far end, which is the only way to ask whether the road can carry what is being asked of it. Switch between them and the same sliders answer different questions.</p>
     </div>
     <div class="factor">
       <span class="tag">In the sim</span>
       <h4>A bottleneck</h4>
-      <p>Most real jams are not phantoms. They are pinned to a lane closure, an on-ramp, a gradient or a bend. Turn the closure on and the jam stops wandering and parks itself upstream of the cones &mdash; and note how much capacity goes to the merging itself, well before anyone reaches them.</p>
+      <p>Most real jams are not phantoms. They are pinned to a lane closure, an on-ramp, a gradient or a bend. Turn the closure on and the jam stops wandering and parks itself upstream of the cones. The on-ramp is the more instructive one: the road runs freely for a couple of minutes and then breaks down, and once it has, throughput settles well below what it was carrying before. Getting it back means turning the demand down much further than the level that broke it.</p>
     </div>
     <div class="factor">
       <span class="tag blue">Structural</span>
@@ -343,6 +362,10 @@ var LC_COOLDOWN = 2.2;       // s
 var CLOSE_A = 300, CLOSE_B = 360, CLOSE_LANE = 2;
 var MERGE_ZONE = 220;        // m of advance warning
 var MIN_SLOT = 2.6;          // m, smallest gap anyone will squeeze into
+var RAMP = 3;                // list index of the on-ramp acceleration lane
+var RAMP_A = 150, RAMP_B = 285;   // the acceleration lane runs between these
+var RAMP_V = 65/3.6;         // m/s, speed traffic arrives at the top of the ramp
+var SEC_A = 40, SEC_B = 140; // detector section, upstream of the merge
 
 var $ = function(id){ return document.getElementById(id); };
 var road = $("road"), rctx = road.getContext("2d");
@@ -351,11 +374,13 @@ var fd = $("fdCanvas"), fctx = fd.getContext("2d");
 
 var C = {
   cars:$("cCars"), speed:$("cSpeed"), sd:$("cSd"), T:$("cT"), hgv:$("cHgv"),
-  lag:$("cLag"), noise:$("cNoise"), pol:$("cPol"), close:$("cClose"), rate:$("cRate")
+  lag:$("cLag"), noise:$("cNoise"), pol:$("cPol"), close:$("cClose"), rate:$("cRate"),
+  mode:$("cMode"), inMain:$("cInMain"), inRamp:$("cInRamp")
 };
 var O = {
   cars:$("oCars"), speed:$("oSpeed"), sd:$("oSd"), T:$("oT"), hgv:$("oHgv"),
-  lag:$("oLag"), noise:$("oNoise"), pol:$("oPol"), rate:$("oRate")
+  lag:$("oLag"), noise:$("oNoise"), pol:$("oPol"), rate:$("oRate"),
+  inMain:$("oInMain"), inRamp:$("oInRamp")
 };
 
 /* ---------------- theme-aware colours ---------------- */
@@ -400,11 +425,16 @@ function randn(){
 }
 function wrap(d){ d %= L; if(d < 0) d += L; return d; }
 function meanV0(){ return +C.speed.value/3.6; }
+/* on a loop the road has no ends, so every distance is taken the short way
+   round; on an open road it is just a subtraction and nothing wraps */
+function isOpen(){ return C.mode.checked; }
+/* the ramp is drawn as a row below lane 1, so it maps to -1 for rendering */
+function laneOf(c){ return c.lane === RAMP ? -1 : c.lane; }
 
 function makeCar(x, lane, hgv){
   if(hgv === undefined) hgv = Math.random()*100 < +C.hgv.value;
   var c = {
-    x:x, v:0, lane:lane, laneF:lane, hgv:hgv,
+    x:x, v:0, lane:lane, laneF:(lane === RAMP ? -1 : lane), hgv:hgv,
     v0Z:randn(), TZ:randn()*0.12, capZ:randn(),
     a:hgv ? HGV_A : A_MAX, b:hgv ? HGV_B : B_COMF,
     s0:hgv ? HGV_S0 : S0, len:hgv ? HGV_LEN : CAR_LEN,
@@ -432,7 +462,12 @@ function blocked(x, lane){
 }
 function build(){
   var n = +C.cars.value, perLane = Math.ceil(n/LANES), i, l, k = 0;
-  cars = [];
+  cars = []; queueMain = 0; queueRamp = 0;
+  if(isOpen()){                                  // an open road fills itself from the inflow
+    simT = 0; crossings = []; settleT = 0; fdNext = 0;
+    clearTS();
+    return;
+  }
   for(l = 0; l < LANES; l++){
     for(i = 0; i < perLane && k < n; i++, k++){
       var x = wrap(i*(L/perLane) + l*3.1);
@@ -489,10 +524,20 @@ function laneList(l){
 /* lane lists are kept sorted by x, so leader and follower are the two
    neighbours of the insertion point -- O(log n) instead of a full scan */
 function neighbours(list, x, self){
-  var n = list.length;
+  var n = list.length, open = isOpen();
   if(n === 0 || (n === 1 && list[0] === self)) return {lead:null, dLead:L, foll:null, dFoll:L};
   var lo = 0, hi = n, mid;
   while(lo < hi){ mid = (lo + hi) >> 1; if(list[mid].x <= x) lo = mid + 1; else hi = mid; }
+
+  if(open){
+    /* no wrap-around: run off either end and there is simply nobody there */
+    var i = lo;      if(list[i] === self) i++;
+    var j = lo - 1;  if(j >= 0 && list[j] === self) j--;
+    var oLead = i < n ? list[i] : null;
+    var oFoll = j >= 0 ? list[j] : null;
+    return {lead:oLead, dLead:oLead ? oLead.x - x : L,
+            foll:oFoll, dFoll:oFoll ? x - oFoll.x : L};
+  }
   var li = lo % n, fi = (lo - 1 + n) % n;
   var lead = list[li]; if(lead === self){ li = (li + 1) % n; lead = list[li]; }
   var foll = list[fi]; if(foll === self){ fi = (fi - 1 + n) % n; foll = list[fi]; }
@@ -503,28 +548,34 @@ function neighbours(list, x, self){
    Infinity means the closure does not apply to it. */
 /* true where the closed lane may not be occupied or entered */
 function laneBarred(x, lane){
+  if(lane === RAMP) return true;                 // nobody may move onto the ramp
   if(!C.close.checked || lane !== CLOSE_LANE) return false;
   if(x >= CLOSE_A - 10 && x <= CLOSE_B + 10) return true;
-  return wrap(CLOSE_A - x) < MERGE_ZONE + 40;
+  var d = isOpen() ? CLOSE_A - x : wrap(CLOSE_A - x);
+  return d >= 0 && d < MERGE_ZONE + 40;
 }
-function coneDist(c){
+/* how far a vehicle has left before it must be out of the lane it is in --
+   the cones for a closed lane, the end of the acceleration lane for the ramp.
+   0 means out of road, Infinity means it is under no obligation to move. */
+function forcedMerge(c){
+  if(c.lane === RAMP) return Math.max(0, RAMP_B - c.x);
   if(!C.close.checked || c.lane !== CLOSE_LANE) return Infinity;
   if(c.x >= CLOSE_A && c.x <= CLOSE_B) return 0;
-  var d = wrap(CLOSE_A - c.x);
-  return d < MERGE_ZONE ? d : Infinity;
+  var d = isOpen() ? CLOSE_A - c.x : wrap(CLOSE_A - c.x);
+  return (d >= 0 && d < MERGE_ZONE) ? d : Infinity;
 }
 function accelWith(c, lead, dLead){
   var s = lead ? dLead - lead.len : 1e5;
   var dv = lead ? c.v - lead.v : 0;
   var a = idm(c, s, dv);
-  var d = coneDist(c);
+  var d = forcedMerge(c);
   if(d > 0 && d < MERGE_ZONE) a = Math.min(a, idm(c, Math.max(0.2, d - 1.5), c.v));
   return a;
 }
 
 /* ---------------- one physics step ---------------- */
 function step(){
-  var lists = [laneList(0), laneList(1), laneList(2)];
+  var lists = [laneList(0), laneList(1), laneList(2), laneList(RAMP)];
   var pol = +C.pol.value, noise = +C.noise.value, i, c;
 
   for(i = 0; i < cars.length; i++){
@@ -533,13 +584,16 @@ function step(){
 
     var here = neighbours(lists[c.lane], c.x, c);
     var aOld = accelWith(c, here.lead, here.dLead);
-    var mandDist = coneDist(c);
+    var mandDist = forcedMerge(c);
     var mandatory = isFinite(mandDist);
     var best = null, bestGain = DA_TH;
 
-    for(var d = -1; d <= 1; d += 2){
-      var tgt = c.lane + d;
+    /* the ramp only ever feeds lane 1; everyone else considers either side */
+    var targets = c.lane === RAMP ? [0] : [c.lane-1, c.lane+1];
+    for(var ti = 0; ti < targets.length; ti++){
+      var tgt = targets[ti];
       if(tgt < 0 || tgt >= LANES) continue;
+      var d = c.lane === RAMP ? 0 : tgt - c.lane;
       if(laneBarred(c.x, tgt)) continue;
       if(c.hgv && tgt === LANES-1) continue;               // no lorries in lane 3
 
@@ -566,7 +620,8 @@ function step(){
         if(here.foll){
           var ol = neighbours(lists[c.lane], here.foll.x, here.foll);
           oBefore = accelWith(here.foll, ol.lead, ol.dLead);
-          oAfter  = accelWith(here.foll, here.lead, here.lead ? wrap(here.lead.x - here.foll.x) : L);
+          var dOL = here.lead ? (isOpen() ? here.lead.x - here.foll.x : wrap(here.lead.x - here.foll.x)) : L;
+          oAfter  = accelWith(here.foll, here.lead, dOL);
         }
         var bias = d*BIAS_LEFT*(c.hgv ? 4 : 1);            // lorries hold the left much harder
         gain = (aNew - aOld) + pol*((fAfter - fBefore) + (oAfter - oBefore)) - bias;
@@ -574,12 +629,13 @@ function step(){
       if(gain > bestGain){ bestGain = gain; best = tgt; }
     }
 
-    /* last resort: stopped at the cones with a physically clear gap alongside */
+    /* last resort: out of road with a physically clear gap alongside */
     if(best === null && mandatory && c.v < 0.6 && mandDist < 12){
-      var alt = neighbours(lists[CLOSE_LANE-1], c.x, null);
+      var escape = c.lane === RAMP ? 0 : CLOSE_LANE - 1;
+      var alt = neighbours(lists[escape], c.x, null);
       var gl = alt.lead ? alt.dLead - alt.lead.len : 99;
       var gb = alt.foll ? alt.dFoll - c.len : 99;
-      if(gl > 6 && gb > 6) best = CLOSE_LANE - 1;
+      if(gl > 6 && gb > 6) best = escape;
     }
 
     if(best !== null){
@@ -631,28 +687,93 @@ function step(){
     if(C.close.checked && c.lane === CLOSE_LANE && c.x < CLOSE_A && xNew >= CLOSE_A){
       xNew = Math.min(xNew, CLOSE_A - 0.5); vNew = 0;
     }
+    if(c.lane === RAMP && xNew >= RAMP_B){       // the acceleration lane runs out
+      xNew = Math.min(xNew, RAMP_B - 0.5); vNew = 0;
+    }
     c.nx = xNew; c.nv = vNew;
   }
 
   /* commit only once every car has been evaluated. Updating in place would
      leave the lane lists unsorted mid-pass and hand cars the wrong neighbour */
+  var open = isOpen(), kept = open ? [] : null;
   for(i = 0; i < cars.length; i++){
     c = cars[i];
     if(c.nx >= L) crossings.push(simT);
-    c.x = wrap(c.nx); c.v = c.nv;
-    c.laneF += (c.lane - c.laneF)*Math.min(1, DT*2.2);
+    if(open){
+      if(c.nx >= L) continue;                    // driven off the end of the map
+      c.x = c.nx;
+      kept.push(c);
+    } else {
+      c.x = wrap(c.nx);
+    }
+    c.v = c.nv;
+    c.laneF += (laneOf(c) - c.laneF)*Math.min(1, DT*2.2);
   }
+  if(open){ cars = kept; arrivals(); }
 
   simT += DT; settleT += DT;
   while(crossings.length && simT - crossings[0] > 60) crossings.shift();
 }
 
+/* ---------------- arrivals on an open road ---------------- */
+var queueMain = 0, queueRamp = 0;
+/* room needed to join at speed v without immediately braking: the same
+   standstill-plus-headway gap the car-following model would ask for */
+function joinGap(v, T, hgv){
+  return (hgv ? HGV_S0 : S0) + T*v + (hgv ? 6 : 3);
+}
+/* a vehicle sitting exactly on the entry point counts as behind it, not ahead,
+   so the space behind has to be checked too or arrivals land on top of it */
+function entryGap(x, lane){
+  var nb = neighbours(laneList(lane), x, null);
+  return {gap:  nb.lead ? nb.dLead - nb.lead.len : 1e5,
+          back: nb.foll ? nb.dFoll : 1e5,
+          lead: nb.lead};
+}
+function tryEnter(x, lane, hgv, info){
+  var probe = makeCar(x, lane, hgv);
+  var vEnter = lane === RAMP ? Math.min(probe.v0, RAMP_V)
+                             : Math.min(probe.v0, info.lead ? info.lead.v : probe.v0);
+  if(info.gap < joinGap(vEnter, probe.T, hgv)) return false;
+  if(info.back < probe.len + MIN_SLOT) return false;
+  probe.v = vEnter;
+  cars.push(probe);
+  return true;
+}
+function arrivals(){
+  /* Bernoulli arrivals, so traffic turns up in clumps the way it really does
+     rather than metronomically */
+  var guard;
+  if(Math.random() < (+C.inMain.value/3600)*DT) queueMain++;
+  if(Math.random() < (+C.inRamp.value/3600)*DT) queueRamp++;
+  /* a vehicle that cannot find room waits at the entry rather than vanishing,
+     which is what makes demand above capacity visible instead of silent */
+  for(guard = 0; guard < 4 && queueMain > 0; guard++){
+    var hgv = Math.random()*100 < +C.hgv.value;
+    /* join wherever there is most room, rather than always piling into lane 1 */
+    var bestLane = -1, bestInfo = null;
+    for(var l = 0; l < LANES; l++){
+      if(hgv && l === LANES-1) continue;
+      if(laneBarred(0, l)) continue;
+      var info = entryGap(0, l);
+      if(!bestInfo || info.gap > bestInfo.gap){ bestInfo = info; bestLane = l; }
+    }
+    if(bestLane < 0 || !tryEnter(0, bestLane, hgv, bestInfo)) break;
+    queueMain--;
+  }
+  for(guard = 0; guard < 4 && queueRamp > 0; guard++){
+    if(!tryEnter(RAMP_A, RAMP, Math.random()*100 < +C.hgv.value, entryGap(RAMP_A, RAMP))) break;
+    queueRamp--;
+  }
+}
+
 /* ---------------- road rendering ---------------- */
 var laneH = 34, shoulder = 12, roadW = 0;
+function roadH(){ return LANES*laneH + shoulder*2 + (isOpen() ? laneH : 0); }
 function sizeRoad(){
   var w = road.clientWidth || 900;
   var dpr = window.devicePixelRatio || 1;
-  var h = LANES*laneH + shoulder*2;
+  var h = roadH();
   road.style.height = h + "px";
   road.width = Math.round(w*dpr); road.height = Math.round(h*dpr);
   rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -667,19 +788,40 @@ function rrect(x, y, w, h, r){
   rctx.closePath(); rctx.fill();
 }
 function drawRoad(){
-  if(road.clientWidth !== roadW) roadW = sizeRoad();
-  var W = road.clientWidth, H = LANES*laneH + shoulder*2, px = W/L, l;
+  var open = isOpen();
+  if(road.clientWidth !== roadW || road.style.height !== roadH() + "px") roadW = sizeRoad();
+  var W = road.clientWidth, H = roadH(), px = W/L, l;
   rctx.clearRect(0, 0, W, H);
   rctx.fillStyle = K["asphalt-2"]; rctx.fillRect(0, 0, W, H);
   rctx.fillStyle = K["asphalt"];   rctx.fillRect(0, shoulder, W, LANES*laneH);
 
   function laneY(li){ return shoulder + (LANES-1-li)*laneH; }   // lane 1 at the bottom
 
+  /* the on-ramp: an acceleration lane alongside lane 1, tapering out at the end */
+  if(open){
+    var ry = shoulder + LANES*laneH;
+    rctx.fillStyle = K["asphalt"];
+    rctx.beginPath();
+    rctx.moveTo(RAMP_A*px, ry + laneH);
+    rctx.lineTo(RAMP_A*px, ry);
+    rctx.lineTo(RAMP_B*px, ry);
+    rctx.lineTo(RAMP_B*px, ry + laneH*0.35);
+    rctx.closePath(); rctx.fill();
+    rctx.strokeStyle = K["paint"]; rctx.globalAlpha = .5;
+    rctx.lineWidth = 1.6; rctx.setLineDash([13, 15]);
+    rctx.beginPath(); rctx.moveTo(RAMP_A*px, ry + 0.5); rctx.lineTo(RAMP_B*px, ry + 0.5); rctx.stroke();
+    rctx.setLineDash([]); rctx.globalAlpha = .85; rctx.lineWidth = 2;
+    rctx.beginPath();
+    rctx.moveTo(RAMP_A*px, ry + laneH); rctx.lineTo(RAMP_B*px, ry + laneH*0.35);
+    rctx.stroke(); rctx.globalAlpha = 1;
+  }
+
   rctx.strokeStyle = K["paint"];
   rctx.globalAlpha = .85; rctx.lineWidth = 2;
   rctx.beginPath();
+  var deck = shoulder + LANES*laneH;                     // bottom edge of the carriageway
   rctx.moveTo(0, shoulder+0.5); rctx.lineTo(W, shoulder+0.5);
-  rctx.moveTo(0, H-shoulder-0.5); rctx.lineTo(W, H-shoulder-0.5);
+  rctx.moveTo(0, deck-0.5); rctx.lineTo(W, deck-0.5);
   rctx.stroke();
   rctx.globalAlpha = .5; rctx.lineWidth = 1.6; rctx.setLineDash([13, 15]);
   rctx.beginPath();
@@ -687,7 +829,14 @@ function drawRoad(){
   rctx.stroke(); rctx.setLineDash([]); rctx.globalAlpha = 1;
 
   rctx.strokeStyle = K["matrix"]; rctx.globalAlpha = .45; rctx.lineWidth = 1;
-  rctx.beginPath(); rctx.moveTo(0.5, shoulder); rctx.lineTo(0.5, H-shoulder); rctx.stroke();
+  rctx.beginPath(); rctx.moveTo(0.5, shoulder); rctx.lineTo(0.5, deck); rctx.stroke();
+  if(open){                                              /* detector section for the chart */
+    rctx.globalAlpha = .3;
+    rctx.beginPath();
+    rctx.moveTo(SEC_A*px + 0.5, shoulder); rctx.lineTo(SEC_A*px + 0.5, deck);
+    rctx.moveTo(SEC_B*px + 0.5, shoulder); rctx.lineTo(SEC_B*px + 0.5, deck);
+    rctx.stroke();
+  }
   rctx.globalAlpha = 1;
 
   if(C.close.checked){
@@ -707,13 +856,14 @@ function drawRoad(){
     var cw = Math.max(4.5, c.len*px), ch = c.hgv ? 16 : 13;
     var y = shoulder + (LANES-1-c.laneF)*laneH + (laneH-ch)/2;
     var x = c.x*px - cw;
+    var ghost = !open && x < 0;                   // only a loop shows the same car twice
     rctx.fillStyle = rgbStr(ramp(c.v/ref));
     rrect(x, y, cw, ch, 1.8);
-    if(x < 0) rrect(x + W, y, cw, ch, 1.8);
+    if(ghost) rrect(x + W, y, cw, ch, 1.8);
     if(c.hgv){                                    // split the cab off the trailer
       rctx.fillStyle = K["asphalt"]; rctx.globalAlpha = .55;
       rctx.fillRect(x + cw - 0.28*cw, y + 1, 1.4, ch - 2);
-      if(x < 0) rctx.fillRect(x + W + cw - 0.28*cw, y + 1, 1.4, ch - 2);
+      if(ghost) rctx.fillRect(x + W + cw - 0.28*cw, y + 1, 1.4, ch - 2);
       rctx.globalAlpha = 1;
     }
   }
@@ -772,17 +922,35 @@ function paintFD(){
 
 /* ---------------- metrics ---------------- */
 function metrics(){
-  var n = cars.length, sv = 0, jam = 0;
-  for(var i = 0; i < n; i++){ sv += cars[i].v; if(cars[i].v < 5.5) jam++; }
+  var n = cars.length, sv = 0, jam = 0, i;
+  for(i = 0; i < n; i++){ sv += cars[i].v; if(cars[i].v < 5.5) jam++; }
   var vm = n ? sv/n : 0;                                   // m/s
   var k = n/(LANES*L/1000);                                // veh/km/lane
-  return {v:vm*3.6, k:k, q:k*vm*3.6, jam:n ? 100*jam/n : 0};
+  var out = {v:vm*3.6, k:k, q:k*vm*3.6, jam:n ? 100*jam/n : 0,
+             qDet:crossings.length*(3600/Math.min(60, Math.max(10, simT)))};
+
+  /* on an open road density varies along the carriageway, so a single average
+     is meaningless for the chart. Measure a fixed section instead, the way a
+     loop detector does, placed upstream of the merge to catch the queue. */
+  if(isOpen()){
+    var ns = 0, ss = 0;
+    for(i = 0; i < n; i++){
+      var c = cars[i];
+      if(c.lane !== RAMP && c.x >= SEC_A && c.x < SEC_B){ ns++; ss += c.v; }
+    }
+    var ks = ns/(LANES*(SEC_B-SEC_A)/1000);
+    var vs = ns ? ss/ns : 0;
+    out.k = ks; out.v = vm*3.6; out.q = ks*vs*3.6; out.sectionN = ns;
+  }
+  return out;
 }
 function paintMetrics(m){
+  var open = isOpen();
   $("mSpeed").innerHTML = m.v.toFixed(0) + '<small>km/h</small>';
-  $("mFlow").innerHTML  = (Math.round(m.q*LANES/10)*10) + '<small>veh/h</small>';
+  $("mFlow").innerHTML  = (Math.round((open ? m.qDet : m.q*LANES)/10)*10) + '<small>veh/h</small>';
   $("mDens").innerHTML  = m.k.toFixed(0) + '<small>/km/lane</small>';
   $("mJam").innerHTML   = m.jam.toFixed(0) + '<small>%</small>';
+  if(open) $("mQueue").innerHTML = (queueMain + queueRamp) + '<small>veh</small>';
   $("mClock").innerHTML = (simT/60).toFixed(1) + '<small>min</small>';
 }
 
@@ -794,8 +962,9 @@ function frame(){
     for(s = 0; s < sub; s++){
       step();
       if(simT >= tsNext){ pushTSRow(); tsNext = simT + 0.4; }
-      if(simT >= fdNext && settleT > 25){
+      if(simT >= fdNext && settleT > (isOpen() ? 70 : 25)){
         var mm = metrics();
+        if(isOpen() && !mm.sectionN){ fdNext = simT + 2; continue; }   // nothing in the section yet
         fdPoints.push({k:mm.k, q:mm.q, c:ramp(mm.v/(meanV0()*3.6))});
         if(fdPoints.length > 700) fdPoints.shift();
         fdNext = simT + 2; paintFD();
@@ -814,6 +983,8 @@ function labels(){
   O.sd.textContent    = "σ " + C.sd.value + " km/h";
   O.T.textContent     = (+C.T.value).toFixed(2) + " s";
   O.hgv.textContent   = C.hgv.value + "%";
+  O.inMain.textContent = C.inMain.value + " veh/h";
+  O.inRamp.textContent = C.inRamp.value + " veh/h";
   O.lag.textContent   = (+C.lag.value).toFixed(2) + " s";
   O.noise.textContent = (+C.noise.value).toFixed(2) + " m/s²";
   O.pol.textContent   = (+C.pol.value).toFixed(2);
@@ -823,7 +994,12 @@ C.cars.addEventListener("input", function(){ labels(); reflow(); });
 [C.speed, C.sd, C.T].forEach(function(el){
   el.addEventListener("input", function(){ labels(); refreshDesired(); });
 });
-[C.lag, C.noise, C.pol, C.rate, C.hgv].forEach(function(el){ el.addEventListener("input", labels); });
+[C.lag, C.noise, C.pol, C.rate, C.hgv, C.inMain, C.inRamp].forEach(function(el){ el.addEventListener("input", labels); });
+C.mode.addEventListener("change", function(){
+  document.body.classList.toggle("open", isOpen());
+  roadW = 0;                                   // the canvas gains or loses the ramp lane
+  build();
+});
 /* changing the mix swaps vehicle lengths, so rebuild on release rather than
    stretching a car into the one behind it */
 C.hgv.addEventListener("change", build);
@@ -835,6 +1011,7 @@ $("btnPlay").addEventListener("click", function(){
 $("btnReset").addEventListener("click", function(){ build(); fdPoints = []; paintFD(); });
 window.addEventListener("resize", function(){ roadW = 0; });
 
+document.body.classList.toggle("open", isOpen());
 labels(); build(); paintFD();
 requestAnimationFrame(frame);
 })();
