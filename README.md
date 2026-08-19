@@ -21,6 +21,12 @@ GitHub Pages off `main`, or just open the file in a browser.
   the traffic at roughly 15 km/h while every car inside it moves forwards.
 - **Fundamental diagram** — flow against density, accumulating across parameter
   changes. Flow rises with density, peaks near 1900 veh/h/lane, then collapses.
+- **Longest queue** — the running lanes are binned at 5 m, a bin counts as queued
+  when the mean speed of the whole cross-section there is below 20 km/h, clear
+  stretches of up to 15 m are bridged so a single rolling gap does not split one
+  queue in two, and the readout gives the longest unbroken stretch plus how many
+  separate queues there are. The slip road is excluded: a queue on it is not a
+  queue on the motorway.
 
 ## Controls
 
@@ -187,7 +193,12 @@ is where the 5 s dwell lands.
   go.
 - The open road is only 500 m long, so the upstream queue has about 90 m before it
   reaches the entry and starts backing up into the queue counter rather than being
-  visible on the map.
+  visible on the map. The longest-queue readout is therefore capped by the length of
+  the map: once it stops growing, check whether the entry queue has started growing
+  instead.
+- A queue length of less than the full road during near-standstill is usually
+  correct rather than a measurement failure — the stretch immediately downstream of
+  a barrier is genuinely moving, because vehicles released from it accelerate away.
 - Headways are heterogeneous only through a small multiplier on a single slider.
   Real drivers differ far more in following distance than in top speed, and
   following distance is what sets capacity.

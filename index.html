@@ -179,6 +179,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="tile"><span class="k">Throughput</span><span class="v" id="mFlow">&mdash;</span></div>
     <div class="tile"><span class="k">Density</span><span class="v" id="mDens">&mdash;</span></div>
     <div class="tile"><span class="k">Crawling</span><span class="v" id="mJam">&mdash;</span></div>
+    <div class="tile"><span class="k">Longest queue</span><span class="v" id="mQueueLen">&mdash;</span></div>
     <div class="tile open-only"><span class="k">Waiting to join</span><span class="v" id="mQueue">&mdash;</span></div>
     <div class="tile"><span class="k">Elapsed</span><span class="v" id="mClock">&mdash;</span></div>
   </div>
@@ -341,7 +342,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
     <div class="factor">
       <span class="tag blue">Structural</span>
       <h4>What you measure</h4>
-      <p>The animation is persuasive but the time&ndash;space diagram is the evidence: it makes the backward-travelling waves visible and measurable. The fundamental diagram is the payoff &mdash; the point where more cars start delivering less throughput, and the capacity drop that means clearing a jam takes fewer cars than causing it.</p>
+      <p>The animation is persuasive but the time&ndash;space diagram is the evidence: it makes the backward-travelling waves visible and measurable, and the queue readout puts a number on them. The fundamental diagram is the payoff &mdash; the point where more cars start delivering less throughput, and the capacity drop that means clearing a jam takes fewer cars than causing it.</p>
     </div>
   </div>
   <p>One more is worth knowing about, deliberately left out here to keep the controls honest: <strong>heterogeneous headways</strong>. Tailgaters and cautious drivers differ far more in following distance than in top speed, and following distance is what sets capacity &mdash; so a spread on the headway slider would arguably do more work than the spread on desired speeds does.</p>
@@ -1070,13 +1071,70 @@ function paintFD(){
 }
 
 /* ---------------- metrics ---------------- */
+/* Length of queue, measured the way a traffic report means it: bin the running
+   lanes, call a bin queued when the whole cross-section there is crawling, close
+   up short gaps, and return the longest unbroken stretch. The slip road is left
+   out -- a queue on it is not a queue on the motorway. */
+var JAM_V = 5.5;             // m/s, the same threshold as the crawling readout
+var JAM_BIN = 5;             // m per bin
+var JAM_BRIDGE = 3;          // bins of clear road that do not break a queue
+function queues(){
+  var nb = Math.round(L/JAM_BIN), i, b;
+  var sum = new Float64Array(nb), cnt = new Float64Array(nb), jam = new Uint8Array(nb);
+  for(i = 0; i < cars.length; i++){
+    var c = cars[i];
+    if(c.lane === RAMP) continue;
+    var b0 = Math.floor((c.x - c.len)/JAM_BIN), b1 = Math.floor(c.x/JAM_BIN);
+    for(b = b0; b <= b1; b++){
+      var bi = isOpen() ? b : ((b % nb) + nb) % nb;
+      if(bi < 0 || bi >= nb) continue;
+      sum[bi] += c.v; cnt[bi]++;
+    }
+  }
+  for(i = 0; i < nb; i++) jam[i] = (cnt[i] && sum[i]/cnt[i] < JAM_V) ? 1 : 0;
+
+  /* bridge short clear stretches so one rolling gap does not split a queue in two */
+  var loop = !isOpen(), span = loop ? nb*2 : nb;
+  for(i = 0; i < span; i++){
+    if(jam[i % nb]) continue;
+    var j = i;
+    while(j < span && !jam[j % nb]) j++;
+    var runLen = j - i;
+    if(runLen <= JAM_BRIDGE && i > 0 && j < span && jam[(i-1) % nb] && jam[j % nb]){
+      for(b = i; b < j; b++) jam[b % nb] = 1;
+    }
+    i = j - 1;
+  }
+
+  var total = 0;
+  for(i = 0; i < nb; i++) total += jam[i];
+  if(total === nb) return {longest:L, total:L, count:1};
+
+  var longest = 0, count = 0, run = 0;
+  for(i = 0; i < span; i++){
+    if(jam[i % nb]){
+      run++;
+      if(run > longest) longest = run;
+      if(run === 1 && i < nb) count++;
+    } else {
+      run = 0;
+    }
+  }
+  if(loop){                                    // a wrapped queue was counted at both ends
+    if(jam[0] && jam[nb-1] && count > 1) count--;
+    longest = Math.min(longest, nb);
+  }
+  return {longest:longest*JAM_BIN, total:total*JAM_BIN, count:count};
+}
+
 function metrics(){
   var n = cars.length, sv = 0, jam = 0, i;
   for(i = 0; i < n; i++){ sv += cars[i].v; if(cars[i].v < 5.5) jam++; }
   var vm = n ? sv/n : 0;                                   // m/s
   var k = n/(LANES*L/1000);                                // veh/km/lane
   var out = {v:vm*3.6, k:k, q:k*vm*3.6, jam:n ? 100*jam/n : 0,
-             qDet:crossings.length*(3600/Math.min(60, Math.max(10, simT)))};
+             qDet:crossings.length*(3600/Math.min(60, Math.max(10, simT))),
+             queue:queues()};
 
   /* on an open road density varies along the carriageway, so a single average
      is meaningless for the chart. Measure a fixed section instead, the way a
@@ -1099,6 +1157,8 @@ function paintMetrics(m){
   $("mFlow").innerHTML  = (Math.round((open ? m.qDet : m.q*LANES)/10)*10) + '<small>veh/h</small>';
   $("mDens").innerHTML  = m.k.toFixed(0) + '<small>/km/lane</small>';
   $("mJam").innerHTML   = m.jam.toFixed(0) + '<small>%</small>';
+  $("mQueueLen").innerHTML = m.queue.longest +
+    '<small>m' + (m.queue.count > 1 ? ' of ' + m.queue.count : '') + '</small>';
   if(open) $("mQueue").innerHTML = (queueMain + queueRamp) + '<small>veh</small>';
   $("mClock").innerHTML = (simT/60).toFixed(1) + '<small>min</small>';
 }
