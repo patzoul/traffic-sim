@@ -230,6 +230,16 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
       <p class="hint">Limited to 90&nbsp;km/h, 16.5&nbsp;m long, and slow to pick up speed. Barred from lane&nbsp;3, as on a real three-lane motorway. Takes effect when you let go of the slider.</p>
     </div>
     <div class="ctl">
+      <div class="top"><label for="cSlowN">Slow vehicles</label><output id="oSlowN"></output></div>
+      <input type="range" id="cSlowN" min="0" max="20" step="1" value="0">
+      <p class="hint">How many ordinary cars are trundling along well under the limit &mdash; a caravan, a learner, someone lost. Held at roughly this number, topped up as they leave.</p>
+    </div>
+    <div class="ctl">
+      <div class="top"><label for="cSlowPct">&hellip; doing this much</label><output id="oSlowPct"></output></div>
+      <input type="range" id="cSlowPct" min="30" max="90" step="5" value="60">
+      <p class="hint">Their desired speed as a share of everyone else's. They are ordinary cars otherwise, so they are free to sit in any lane.</p>
+    </div>
+    <div class="ctl">
       <div class="top"><label for="cT">Following headway</label><output id="oT"></output></div>
       <input type="range" id="cT" min="0.6" max="2.4" step="0.05" value="1.3">
       <p class="hint">Target time gap to the car in front. The single biggest lever on how many cars a lane can carry.</p>
@@ -264,6 +274,17 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.9em; backgro
       <input type="range" id="cRate" min="1" max="8" step="1" value="3">
       <p class="hint">How fast road time runs. Jams need a few minutes of it to organise themselves.</p>
     </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Average speed over time</h3>
+    <p>The whole fleet, sampled once a second of road time, against the speed drivers are aiming for. A breakdown shows up as a cliff &mdash; and the climb back out, if it comes at all, is never as steep as the fall.</p>
+  </div>
+  <div class="canvasbox">
+    <canvas id="spdCanvas" style="height:180px"></canvas>
+    <div class="axis"><span id="spdSpan">last 5 min</span><span id="spdNow"></span><span>now</span></div>
   </div>
 </section>
 
@@ -389,16 +410,19 @@ var $ = function(id){ return document.getElementById(id); };
 var road = $("road"), rctx = road.getContext("2d");
 var ts = $("tsCanvas"), tctx = ts.getContext("2d");
 var fd = $("fdCanvas"), fctx = fd.getContext("2d");
+var spd = $("spdCanvas"), sctx = spd.getContext("2d");
 
 var C = {
   cars:$("cCars"), speed:$("cSpeed"), sd:$("cSd"), T:$("cT"), hgv:$("cHgv"),
   lag:$("cLag"), noise:$("cNoise"), pol:$("cPol"), close:$("cClose"), rate:$("cRate"), toll:$("cToll"),
-  mode:$("cMode"), inMain:$("cInMain"), inRamp:$("cInRamp")
+  mode:$("cMode"), inMain:$("cInMain"), inRamp:$("cInRamp"),
+  slowN:$("cSlowN"), slowPct:$("cSlowPct")
 };
 var O = {
   cars:$("oCars"), speed:$("oSpeed"), sd:$("oSd"), T:$("oT"), hgv:$("oHgv"),
   lag:$("oLag"), noise:$("oNoise"), pol:$("oPol"), rate:$("oRate"), toll:$("oToll"),
-  inMain:$("oInMain"), inRamp:$("oInRamp")
+  inMain:$("oInMain"), inRamp:$("oInRamp"),
+  slowN:$("oSlowN"), slowPct:$("oSlowPct")
 };
 
 /* ---------------- theme-aware colours ---------------- */
@@ -411,7 +435,7 @@ function hex(h){
 function readTokens(){
   var cs = getComputedStyle(document.documentElement);
   ["asphalt","asphalt-2","paint","surface","surface-2","sunk","line","ink-3",
-   "v-free","v-slow","v-stop","matrix","cone","verge","booth","barrier"].forEach(function(n){
+   "v-free","v-slow","v-stop","matrix","matrix-soft","cone","verge","booth","barrier"].forEach(function(n){
     K[n] = cs.getPropertyValue("--"+n).trim();
   });
   K.rgbFree = hex(K["v-free"]); K.rgbSlow = hex(K["v-slow"]);
@@ -456,7 +480,7 @@ function makeCar(x, lane, hgv){
     v0Z:randn(), TZ:randn()*0.12, capZ:randn(),
     a:hgv ? HGV_A : A_MAX, b:hgv ? HGV_B : B_COMF,
     s0:hgv ? HGV_S0 : S0, len:hgv ? HGV_LEN : CAR_LEN,
-    lc:0, rt:Math.random()*0.7, aHold:0, nx:x, nv:0, paid:false, payUntil:0
+    lc:0, rt:Math.random()*0.7, aHold:0, nx:x, nv:0, paid:false, payUntil:0, slow:false
   };
   setDesired(c);
   c.v = c.v0*0.9;
@@ -466,8 +490,29 @@ function makeCar(x, lane, hgv){
    bunch up and why one overtaking another takes a mile of road */
 function setDesired(c){
   var want = Math.max(8, meanV0() + c.v0Z*(+C.sd.value/3.6));
-  c.v0 = c.hgv ? Math.min(HGV_CAP*(1 + 0.012*c.capZ), want) : want;
+  if(c.slow)      c.v0 = Math.max(4, meanV0()*(+C.slowPct.value/100));
+  else if(c.hgv)  c.v0 = Math.min(HGV_CAP*(1 + 0.012*c.capZ), want);
+  else            c.v0 = want;
   c.T = +C.T.value*(1 + c.TZ);
+}
+function slowCount(){
+  var n = 0;
+  for(var i = 0; i < cars.length; i++) if(cars[i].slow) n++;
+  return n;
+}
+/* keep exactly the requested number of dawdlers out there, promoting or
+   demoting ordinary cars as the slider moves */
+function applySlow(){
+  var want = +C.slowN.value, have = slowCount(), i, c;
+  for(i = 0; i < cars.length && have > want; i++){
+    c = cars[i];
+    if(c.slow){ c.slow = false; have--; }
+  }
+  for(i = 0; i < cars.length && have < want; i++){
+    c = cars[i];
+    if(!c.slow && !c.hgv){ c.slow = true; have++; }
+  }
+  refreshDesired();
 }
 /* lorries never start in lane 3, so the share is drawn from the other two
    lanes at a raised rate to still land on the percentage that was asked for */
@@ -482,7 +527,7 @@ function build(){
   var n = +C.cars.value, perLane = Math.ceil(n/LANES), i, l, k = 0;
   cars = []; queueMain = 0; queueRamp = 0;
   if(isOpen()){                                  // an open road fills itself from the inflow
-    simT = 0; crossings = []; settleT = 0; fdNext = 0;
+    simT = 0; crossings = []; settleT = 0; fdNext = 0; spdHist = []; spdNext = 0;
     clearTS();
     return;
   }
@@ -494,7 +539,8 @@ function build(){
     }
   }
   reflow();                                                // top up whatever the cones displaced
-  simT = 0; crossings = []; settleT = 0; fdNext = 0;
+  applySlow();
+  simT = 0; crossings = []; settleT = 0; fdNext = 0; spdHist = []; spdNext = 0;
   clearTS();
 }
 function gapAt(x, lane){
@@ -790,6 +836,8 @@ function entryGap(x, lane){
 }
 function tryEnter(x, lane, hgv, info){
   var probe = makeCar(x, lane, hgv);
+  /* top the dawdlers back up as they leave at the far end */
+  if(!hgv && slowCount() < +C.slowN.value){ probe.slow = true; setDesired(probe); }
   var vEnter = lane === RAMP ? Math.min(probe.v0, RAMP_V)
                              : Math.min(probe.v0, info.lead ? info.lead.v : probe.v0);
   if(info.gap < joinGap(vEnter, probe.T, hgv)) return false;
@@ -1017,6 +1065,11 @@ function drawVehicle(c, x, y, cw, ch, ref){
     rctx.fillRect(x + cw*0.20, y + 2.2, Math.max(1.2, cw*0.12), ch - 4.4);
   }
   rctx.globalAlpha = 1;
+  if(c.slow){                                    // deliberately slow, not merely stuck
+    rctx.fillStyle = K["paint"]; rctx.globalAlpha = .85;
+    rctx.fillRect(x + 1, y + ch/2 - 0.9, cw - 2, 1.8);
+    rctx.globalAlpha = 1;
+  }
 }
 
 /* ---------------- time-space diagram ---------------- */
@@ -1042,6 +1095,66 @@ function pushTSRow(){
     d[off+i*4] = col[0]; d[off+i*4+1] = col[1]; d[off+i*4+2] = col[2]; d[off+i*4+3] = 255;
   }
   tctx.putImageData(tsImg, 0, 0);
+}
+
+/* ---------------- speed history ---------------- */
+var SPD_WINDOW = 300;                            // s of road time held on screen
+var spdHist = [], spdNext = 0, spdW = 0;
+function pushSpeed(){
+  spdHist.push({t:simT, v:metrics().v, ref:meanV0()*3.6});
+  while(spdHist.length && simT - spdHist[0].t > SPD_WINDOW) spdHist.shift();
+}
+function paintSpeed(){
+  var dpr = window.devicePixelRatio || 1, w = spd.clientWidth || 900, h = 180;
+  if(w !== spdW){
+    spdW = w; spd.width = Math.round(w*dpr); spd.height = Math.round(h*dpr);
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  var padL = 38, padB = 18, padT = 10;
+  sctx.fillStyle = K["surface"]; sctx.fillRect(0, 0, w, h);
+
+  var ref = meanV0()*3.6;
+  var top = Math.max(40, Math.ceil(ref*1.12/20)*20);
+  function X(t){ return padL + ((t - (simT - SPD_WINDOW))/SPD_WINDOW)*(w - padL - 6); }
+  function Y(v){ return h - padB - (Math.min(v, top)/top)*(h - padB - padT); }
+
+  sctx.font = "10px 'IBM Plex Mono', monospace";
+  sctx.strokeStyle = K["line"]; sctx.lineWidth = 1;
+  for(var g = 0; g <= top; g += top/4){
+    var y = Y(g);
+    sctx.beginPath(); sctx.moveTo(padL, y + 0.5); sctx.lineTo(w - 6, y + 0.5); sctx.stroke();
+    sctx.fillStyle = K["ink-3"]; sctx.fillText(String(Math.round(g)), 4, y + 3);
+  }
+  sctx.fillStyle = K["ink-3"]; sctx.fillText("km/h", 4, 9);
+
+  /* what drivers are aiming for */
+  sctx.strokeStyle = K["ink-3"]; sctx.globalAlpha = .5; sctx.setLineDash([5, 5]);
+  sctx.beginPath(); sctx.moveTo(padL, Y(ref) + 0.5); sctx.lineTo(w - 6, Y(ref) + 0.5); sctx.stroke();
+  sctx.setLineDash([]); sctx.globalAlpha = 1;
+
+  if(spdHist.length > 1){
+    var i, p;
+    sctx.beginPath();
+    sctx.moveTo(X(spdHist[0].t), h - padB);
+    for(i = 0; i < spdHist.length; i++){ p = spdHist[i]; sctx.lineTo(X(p.t), Y(p.v)); }
+    sctx.lineTo(X(spdHist[spdHist.length-1].t), h - padB);
+    sctx.closePath();
+    sctx.fillStyle = K["matrix-soft"] || "rgba(164,98,11,.12)";
+    sctx.fill();
+
+    sctx.beginPath();
+    for(i = 0; i < spdHist.length; i++){
+      p = spdHist[i];
+      if(i) sctx.lineTo(X(p.t), Y(p.v)); else sctx.moveTo(X(p.t), Y(p.v));
+    }
+    sctx.strokeStyle = K["matrix"]; sctx.lineWidth = 1.8;
+    sctx.lineJoin = "round"; sctx.stroke();
+
+    var last = spdHist[spdHist.length-1];
+    sctx.fillStyle = K["matrix"];
+    sctx.beginPath(); sctx.arc(X(last.t), Y(last.v), 3, 0, 6.2832); sctx.fill();
+  }
+  $("spdNow").textContent = "dashed: what drivers want, " + Math.round(ref) + " km/h";
 }
 
 /* ---------------- fundamental diagram ---------------- */
@@ -1171,6 +1284,7 @@ function frame(){
     for(s = 0; s < sub; s++){
       step();
       if(simT >= tsNext){ pushTSRow(); tsNext = simT + 0.4; }
+      if(simT >= spdNext){ pushSpeed(); spdNext = simT + 1; }
       if(simT >= fdNext && settleT > (isOpen() ? 70 : 25)){
         var mm = metrics();
         if(isOpen() && !mm.sectionN){ fdNext = simT + 2; continue; }   // nothing in the section yet
@@ -1181,6 +1295,7 @@ function frame(){
     }
   }
   drawRoad();
+  paintSpeed();
   paintMetrics(metrics());
   requestAnimationFrame(frame);
 }
@@ -1192,6 +1307,8 @@ function labels(){
   O.sd.textContent    = "σ " + C.sd.value + " km/h";
   O.T.textContent     = (+C.T.value).toFixed(2) + " s";
   O.hgv.textContent   = C.hgv.value + "%";
+  O.slowN.textContent  = C.slowN.value === "0" ? "none" : C.slowN.value + (C.slowN.value === "1" ? " car" : " cars");
+  O.slowPct.textContent = C.slowPct.value + "% of the limit";
   O.toll.textContent  = (+C.toll.value ? (+C.toll.value).toFixed(1) + " s" : "off");
   O.inMain.textContent = C.inMain.value + " veh/h";
   O.inRamp.textContent = C.inRamp.value + " veh/h";
@@ -1205,6 +1322,9 @@ C.cars.addEventListener("input", function(){ labels(); reflow(); });
   el.addEventListener("input", function(){ labels(); refreshDesired(); });
 });
 [C.lag, C.noise, C.pol, C.rate, C.hgv, C.inMain, C.inRamp, C.toll].forEach(function(el){ el.addEventListener("input", labels); });
+C.slowN.addEventListener("input", function(){ labels(); applySlow(); });
+C.slowPct.addEventListener("input", function(){ labels(); refreshDesired(); });
+window.addEventListener("resize", function(){ spdW = 0; });
 C.mode.addEventListener("change", function(){
   document.body.classList.toggle("open", isOpen());
   roadW = 0;                                   // the canvas gains or loses the ramp lane

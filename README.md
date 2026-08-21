@@ -21,6 +21,9 @@ GitHub Pages off `main`, or just open the file in a browser.
   the traffic at roughly 15 km/h while every car inside it moves forwards.
 - **Fundamental diagram** — flow against density, accumulating across parameter
   changes. Flow rises with density, peaks near 1900 veh/h/lane, then collapses.
+- **Average speed over time** — the fleet mean sampled once a second of road
+  time over a five-minute window, against a dashed line for the speed drivers are
+  actually aiming for. Breakdown reads as a cliff.
 - **Longest queue** — the running lanes are binned at 5 m, a bin counts as queued
   when the mean speed of the whole cross-section there is below 20 km/h, clear
   stretches of up to 15 m are bridged so a single rolling gap does not split one
@@ -40,6 +43,8 @@ GitHub Pages off `main`, or just open the file in a browser.
 | Average desired speed | 40–130 km/h | Speed each driver holds on an empty road |
 | Spread of desired speeds | 0–26 km/h | Standard deviation across drivers |
 | Share of HGVs | 0–40% | Limited to 90 km/h, 16.5 m long, sluggish, barred from lane 3 |
+| Slow vehicles | 0–20 cars | Ordinary cars held well under the limit, topped up as they leave |
+| … doing this much | 30–90% | Their desired speed as a share of everyone else's |
 | Following headway | 0.6–2.4 s | Target time gap. The biggest single lever on capacity |
 | Reaction time | 0–1.4 s | Delay before a driver acts on what the car in front did |
 | Driver imprecision | 0–0.7 m/s² | Random error in accelerating and braking |
@@ -180,6 +185,39 @@ constant is the entire argument for free-flow tolling.
 
 For reference, real cash toll lanes handle roughly 250–400 vehicles per hour, which
 is where the 5 s dwell lands.
+
+### What a few slow drivers cost
+
+Ordinary cars, not lorries: same length and acceleration, just a lower desired
+speed. They are free to sit in any lane and are drawn with a white roof stripe so
+they can be told apart from a car that is merely stuck.
+
+On the **closed loop** at 65 cars, three runs per setting:
+
+| Slow cars at 60% | Flow (veh/h/lane) | Runs |
+|---|---|---|
+| 0 | 1613 | 1639, 1575, 1624 |
+| 4 | 1626 | 1656, 1694, 1529 |
+
+No effect worth reporting. The difference of 13 veh/h sits inside a run-to-run
+spread of 64–165, so on a fixed-density ring a handful of dawdlers changes nothing
+measurable — three lanes give everyone room to get past. A single-run comparison
+suggested slow cars *improved* flow by 15%; repeating it showed that was noise.
+
+On the **open road** at 6000 veh/h of demand, where capacity is what is at stake:
+
+| Slow cars | Their speed | Throughput | Mean speed |
+|---|---|---|---|
+| 0 | — | 5985 veh/h | 74 km/h |
+| 2 | 60% | 6195 veh/h | 68 km/h |
+| 5 | 60% | 6135 veh/h | 64 km/h |
+| 5 | 40% | 5295 veh/h (−12%) | 45 km/h |
+
+At 60% of the limit even five of them barely dent throughput — the road still
+delivers the demand, it just does it more slowly. Drop them to 40% and the road
+stops keeping up: throughput falls 12% below demand and mean speed is cut nearly in
+half. The damage is not linear in how slow they are, because what matters is
+whether the rest of the traffic can still get past them.
 
 ## Known limits
 
